@@ -2,7 +2,7 @@ import org.testng.annotations.Test;
 
 import static com.codeborne.selenide.Selenide.open;
 
-public class OneTest {
+public class Yandex {
     @Test
     void Open() throws InterruptedException {
     open("https://www.yandex.ru");
