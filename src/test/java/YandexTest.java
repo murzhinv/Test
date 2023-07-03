@@ -2,9 +2,9 @@ import org.testng.annotations.Test;
 
 import static com.codeborne.selenide.Selenide.open;
 
-public class Yandex {
+public class YandexTest {
     @Test
-    void Open() throws InterruptedException {
+    void YandexO() throws InterruptedException {
     open("https://www.yandex.ru");
     Thread.sleep(5000);
  }
