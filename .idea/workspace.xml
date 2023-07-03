@@ -39,7 +39,26 @@
     "settings.editor.selected.configurable": "preferences.lookFeel"
   }
 }]]></component>
-  <component name="RunManager">
+  <component name="RunManager" selected="JUnit.YandexTest">
+    <configuration name="YandexTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="Yandex" />
+      <option name="PACKAGE_NAME" value="" />
+      <option name="MAIN_CLASS_NAME" value="YandexTest" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="YandexTest.YandexO" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="Yandex" />
+      <option name="PACKAGE_NAME" value="" />
+      <option name="MAIN_CLASS_NAME" value="YandexTest" />
+      <option name="METHOD_NAME" value="YandexO" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Yandex" type="TestNG" temporary="true" nameIsGenerated="true">
       <module name="Yandex" />
       <option name="PACKAGE_NAME" value="" />
@@ -53,6 +72,8 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.YandexTest" />
+        <item itemvalue="JUnit.YandexTest.YandexO" />
         <item itemvalue="TestNG.Yandex" />
       </list>
     </recent_temporary>

@@ -2,16 +2,16 @@
 <testng-results ignored="0" total="1" passed="1" failed="0" skipped="0">
   <reporter-output>
   </reporter-output>
-  <suite started-at="2023-07-03T16:18:35 MSK" name="Surefire suite" finished-at="2023-07-03T16:18:43 MSK" duration-ms="7804">
+  <suite started-at="2023-07-03T16:30:42 MSK" name="YandexTest" finished-at="2023-07-03T16:30:54 MSK" duration-ms="11572">
     <groups>
     </groups>
-    <test started-at="2023-07-03T16:18:35 MSK" name="Surefire test" finished-at="2023-07-03T16:18:43 MSK" duration-ms="7804">
+    <test started-at="2023-07-03T16:30:42 MSK" name="Command line test" finished-at="2023-07-03T16:30:54 MSK" duration-ms="11572">
       <class name="YandexTest">
-        <test-method signature="YandexO()[pri:0, instance:YandexTest@19dc67c2]" started-at="2023-07-03T16:18:35 MSK" name="YandexO" finished-at="2023-07-03T16:18:43 MSK" duration-ms="7779" status="PASS">
+        <test-method signature="YandexO()[pri:0, instance:YandexTest@7fad8c79]" started-at="2023-07-03T16:30:42 MSK" name="YandexO" finished-at="2023-07-03T16:30:54 MSK" duration-ms="11548" status="PASS">
           <reporter-output>
           </reporter-output>
         </test-method> <!-- YandexO -->
       </class> <!-- YandexTest -->
-    </test> <!-- Surefire test -->
-  </suite> <!-- Surefire suite -->
+    </test> <!-- Command line test -->
+  </suite> <!-- YandexTest -->
 </testng-results>
