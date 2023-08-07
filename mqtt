@@ -1,65 +1,74 @@
-Certainly! Here's a simple example code for publishing and subscribing to a topic using MQTT in Java:
-
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import javax.net.ssl.*;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
 
 public class MqttExample {
 
     public static void main(String[] args) {
-        String broker = "tcp://mqtt.eclipse.org:1883";
+        String broker = "ssl://mqtt.example.com:8883";
         String clientId = "JavaClient";
         String topic = "myTopic";
 
         try {
+            // Load the SSL certificate and key
+            String caFilePath = "/path/to/ca.crt";
+            String clientCertFilePath = "/path/to/client.crt";
+            String clientKeyFilePath = "/path/to/client.key";
+            char[] keyPassword = "keyPassword".toCharArray();
+
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(null, null);
+
+            Certificate caCert = loadCertificate(caFilePath);
+            keyStore.setCertificateEntry("caCert", caCert);
+
+            Certificate clientCert = loadCertificate(clientCertFilePath);
+            keyStore.setCertificateEntry("clientCert", clientCert);
+
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, keyPassword);
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
+            trustManagerFactory.init(keyStore);
+
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+
             // Create an MQTT client
             MqttClient client = new MqttClient(broker, clientId, new MemoryPersistence());
 
-            // Set callback for handling messages
-            client.setCallback(new MqttCallback() {
-                @Override
-                public void connectionLost(Throwable cause) {
-                    System.out.println("Connection lost!");
-                }
-
-                @Override
-                public void messageArrived(String topic, MqttMessage message) throws Exception {
-                    System.out.println("Received message: " + new String(message.getPayload()));
-                }
-
-                @Override
-                public void deliveryComplete(IMqttDeliveryToken token) {
-                    System.out.println("Message delivered!");
-                }
-            });
+            // Set SSL socket factory
+            SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setSocketFactory(sslSocketFactory);
 
             // Connect to the MQTT broker
-            client.connect();
+            client.connect(options);
 
             // Subscribe to a topic
             client.subscribe(topic);
 
             // Publish a message
             String message = "Hello, MQTT!";
-            client.publish(topic, message.getBytes(), 0, false);
-
-            // Wait for a few seconds
-            Thread.sleep(2000);
+            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+            client.publish(topic, mqttMessage);
 
             // Disconnect from the MQTT broker
             client.disconnect();
-        } catch (MqttException | InterruptedException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static Certificate loadCertificate(String filePath) throws Exception {
+        FileInputStream fis = new FileInputStream(filePath);
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        return cf.generateCertificate(fis);
     }
 }
 
 
-This example demonstrates how to create an MQTT client, set a callback to handle received messages, connect to the MQTT broker, subscribe to a topic, publish a message, wait for a few seconds, and disconnect from the broker.
-
-In this example, we are using the Eclipse Paho MQTT library, which you can include in your project by adding the appropriate dependency to your build file. You can refer to the previous response for the Maven and Gradle dependency configurations.
-
-Make sure to replace the broker, clientId, and topic variables with the appropriate values for your setup.
-
-Remember to handle exceptions appropriately in your own code and consider implementing additional error handling and error recovery mechanisms as needed.
-
-I hope this helps you with your MQTT Java implementation! Let me know if you have any further questions.
