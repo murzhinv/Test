@@ -1,0 +1,39 @@
+
+import com.jcraft.jsch.*;
+
+public class SftpUploader {
+
+    public static void main(String[] args) {
+        String host = "hostname";
+        int port = 22;
+        String username = "username";
+        String password = "password";
+        String localFilePath = "path/to/local/file";
+        String remoteFilePath = "path/to/remote/file";
+
+        JSch jsch = new JSch();
+        Session session = null;
+        ChannelSftp channelSftp = null;
+        try {
+            session = jsch.getSession(username, host, port);
+            session.setPassword(password);
+            session.setConfig("StrictHostKeyChecking", "no");
+            session.connect();
+
+            channelSftp = (ChannelSftp) session.openChannel("sftp");
+            channelSftp.connect();
+
+            channelSftp.put(localFilePath, remoteFilePath);
+            System.out.println("File uploaded successfully!");
+        } catch (JSchException | SftpException e) {
+            e.printStackTrace();
+        } finally {
+            if (channelSftp != null && channelSftp.isConnected()) {
+                channelSftp.disconnect();
+            }
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+        }
+    }
+}
