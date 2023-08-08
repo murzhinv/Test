@@ -1,0 +1,80 @@
+1. MQTT Publisher:
+
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+public class MqttPublisher {
+
+    private static final String BROKER = "ssl://mqtt.example.com:8883";
+    private static final String CLIENT_ID = "publisher";
+    private static final String TOPIC = "my/topic";
+    private static final String PAYLOAD = "Hello, MQTT!";
+    private static final int QOS = 1;
+
+    private static final String CA_FILE_PATH = "/path/to/ca.crt";
+    private static final String CLIENT_CERT_FILE_PATH = "/path/to/client.crt";
+    private static final String CLIENT_KEY_FILE_PATH = "/path/to/client.key";
+
+    public static void main(String[] args) {
+        try {
+            MqttConnectOptions connOpts = new MqttConnectOptions();
+            connOpts.setCleanSession(true);
+            connOpts.setSocketFactory(SSLSocketUtil.getSocketFactory(CA_FILE_PATH, CLIENT_CERT_FILE_PATH, CLIENT_KEY_FILE_PATH, ""));
+
+            MqttClient client = new MqttClient(BROKER, CLIENT_ID, new MemoryPersistence());
+            client.connect(connOpts);
+
+            MqttMessage message = new MqttMessage(PAYLOAD.getBytes());
+            message.setQos(QOS);
+
+            client.publish(TOPIC, message);
+
+            client.disconnect();
+            System.out.println("Message published successfully!");
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+2. MQTT Subscriber:
+
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+public class MqttSubscriber {
+
+    private static final String BROKER = "ssl://mqtt.example.com:8883";
+    private static final String CLIENT_ID = "subscriber";
+    private static final String TOPIC = "my/topic";
+
+    private static final String CA_FILE_PATH = "/path/to/ca.crt";
+    private static final String CLIENT_CERT_FILE_PATH = "/path/to/client.crt";
+    private static final String CLIENT_KEY_FILE_PATH = "/path/to/client.key";
+
+    public static void main(String[] args) {
+        try {
+            MqttConnectOptions connOpts = new MqttConnectOptions();
+            connOpts.setCleanSession(true);
+            connOpts.setSocketFactory(SSLSocketUtil.getSocketFactory(CA_FILE_PATH, CLIENT_CERT_FILE_PATH, CLIENT_KEY_FILE_PATH, ""));
+
+            MqttClient client = new MqttClient(BROKER, CLIENT_ID, new MemoryPersistence());
+            client.connect(connOpts);
+
+            client.subscribe(TOPIC, (topic, message) -> {
+                System.out.println("Received message: " + new String(message.getPayload()));
+            });
+
+            System.out.println("Subscribed to topic: " + TOPIC);
+
+            // Keep the program running to receive messages
+            while (true) {
+                Thread.sleep(1000);
+            }
+        } catch (MqttException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
