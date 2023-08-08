@@ -1,0 +1,198 @@
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import javax.net.ssl.*;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.*;
+import java.security.cert.CertificateException;
+
+public class Publisher {
+    private final String broker;
+    private final String clientId;
+    private final String topic;
+    private final String message;
+
+    public Publisher(String broker, String clientId, String topic, String message) {
+        this.broker = broker;
+        this.clientId = clientId;
+        this.topic = topic;
+        this.message = message;
+    }
+
+    public void publish() {
+        try {
+            MqttClient client = createMqttClient();
+            MqttConnectOptions options = createMqttConnectOptions();
+            client.connect(options);
+
+            MqttMessage mqttMessage = createMqttMessage();
+            client.publish(topic, mqttMessage);
+
+            client.disconnect();
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private MqttClient createMqttClient() throws MqttException {
+        String uri = "ssl://" + broker + ":8883";
+        return new MqttClient(uri, clientId, new MemoryPersistence());
+    }
+
+    private MqttConnectOptions createMqttConnectOptions() throws MqttException {
+        try {
+            String caFilePath = "/path/to/ca.crt"; // Путь до файла CA.crt
+            String certFilePath = "/path/to/client.crt"; // Путь до файла client.crt
+            String keyFilePath = "/path/to/client.key"; // Путь до файла client.key
+            String password = "password"; // Пароль для загрузки ключа
+
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setCleanSession(true);
+            options.setSocketFactory(getSocketFactory(caFilePath, certFilePath, keyFilePath, password));
+
+            return options;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException |
+                KeyManagementException | UnrecoverableKeyException e) {
+            throw new MqttException(e);
+        }
+    }
+
+    private SSLSocketFactory getSocketFactory(String caFilePath, String certFilePath, String keyFilePath, String password)
+            throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException,
+            KeyManagementException, UnrecoverableKeyException {
+
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null, null);
+
+        CertificateFactory certificateFactory = CertificateFactory.getInstance("X509");
+        FileInputStream caFileInputStream = new FileInputStream(caFilePath);
+        FileInputStream certFileInputStream = new FileInputStream(certFilePath);
+
+        keyStore.setCertificateEntry("ca", certificateFactory.generateCertificate(caFileInputStream));
+        keyStore.setCertificateEntry("cert", certificateFactory.generateCertificate(certFileInputStream));
+
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+        keyManagerFactory.init(keyStore, password.toCharArray());
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
+
+        return sslContext.getSocketFactory();
+    }
+
+    private MqttMessage createMqttMessage() {
+        MqttMessage mqttMessage = new MqttMessage();
+        mqttMessage.setPayload(message.getBytes());
+        mqttMessage.setQos(2);
+        return mqttMessage;
+    }
+}
+```
+
+```java
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import javax.net.ssl.*;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.*;
+import java.security.cert.CertificateException;
+
+public class Subscriber {
+    private final String broker;
+    private final String clientId;
+    private final String topic;
+
+    public Subscriber(String
+
+broker, String clientId, String topic) {
+        this.broker = broker;
+        this.clientId = clientId;
+        this.topic = topic;
+    }
+
+    public void subscribe() {
+        try {
+            MqttClient client = createMqttClient();
+            MqttConnectOptions options = createMqttConnectOptions();
+            client.connect(options);
+
+            client.subscribe(topic);
+            client.setCallback(createMqttCallback());
+
+            while (true) {
+                // Ожидание сообщений
+            }
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private MqttClient createMqttClient() throws MqttException {
+        String uri = "ssl://" + broker + ":8883";
+        return new MqttClient(uri, clientId, new MemoryPersistence());
+    }
+
+    private MqttConnectOptions createMqttConnectOptions() throws MqttException {
+        try {
+            String caFilePath = "/path/to/ca.crt"; // Путь до файла CA.crt
+            String certFilePath = "/path/to/client.crt"; // Путь до файла client.crt
+            String keyFilePath = "/path/to/client.key"; // Путь до файла client.key
+            String password = "password"; // Пароль для загрузки ключа
+
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setCleanSession(true);
+            options.setSocketFactory(getSocketFactory(caFilePath, certFilePath, keyFilePath, password));
+
+            return options;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException |
+                KeyManagementException | UnrecoverableKeyException e) {
+            throw new MqttException(e);
+        }
+    }
+
+    private SSLSocketFactory getSocketFactory(String caFilePath, String certFilePath, String keyFilePath, String password)
+            throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException,
+            KeyManagementException, UnrecoverableKeyException {
+
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null, null);
+
+        CertificateFactory certificateFactory = CertificateFactory.getInstance("X509");
+        FileInputStream caFileInputStream = new FileInputStream(caFilePath);
+        FileInputStream certFileInputStream = new FileInputStream(certFilePath);
+
+        keyStore.setCertificateEntry("ca", certificateFactory.generateCertificate(caFileInputStream));
+        keyStore.setCertificateEntry("cert", certificateFactory.generateCertificate(certFileInputStream));
+
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+        keyManagerFactory.init(keyStore, password.toCharArray());
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
+
+        return sslContext.getSocketFactory();
+    }
+
+    private MqttCallback createMqttCallback() {
+        return new MqttCallback() {
+            @Override
+            public void connectionLost(Throwable cause) {
+                // Обработка потери соединения
+            }
+
+            @Override
+            public void messageArrived(String topic, MqttMessage message) throws MqttException {
+                String payload = new String(message.getPayload());
+                System.out.println("Received message: " + payload);
+            }
+
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken token) {
+                // Обработка доставки сообщения
+            }
+        };
+    }
+}
