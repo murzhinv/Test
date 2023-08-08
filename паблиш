@@ -1,0 +1,46 @@
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import javax.net.ssl.SSLSocketFactory;
+
+public class MQTTPublisher {
+
+    public static void main(String[] args) {
+        String broker = "ssl://mqtt.example.com:8883"; // Адрес и порт брокера MQTT
+        String clientId = "publisher"; // Идентификатор клиента
+        String topic = "test/topic"; // Топик, на который будем отправлять сообщения
+        String message = "Hello, MQTT!"; // Сообщение для отправки
+
+        String caFilePath = "/path/to/ca.crt"; // Путь к файлу корневого сертификата
+        String clientCertFilePath = "/path/to/client.crt"; // Путь к файлу сертификата клиента
+        String clientKeyFilePath = "/path/to/client.key"; // Путь к файлу приватного ключа клиента
+
+        try {
+            MqttClient client = new MqttClient(broker, clientId, new MemoryPersistence());
+
+            MqttConnectOptions connOpts = new MqttConnectOptions();
+            connOpts.setSocketFactory(SSLSocketFactory.getDefault());
+            connOpts.setCleanSession(true);
+
+            // Загрузка корневого сертификата
+            connOpts.setServerURIs(new String[]{broker});
+            connOpts.setSocketFactory(SSLSocketUtil.getSocketFactory(caFilePath, clientCertFilePath, clientKeyFilePath, ""));
+
+            System.out.println("Connecting to broker: " + broker);
+            client.connect(connOpts);
+            System.out.println("Connected");
+
+            System.out.println("Publishing message: " + message);
+            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+            mqttMessage.setQos(0);
+            client.publish(topic, mqttMessage);
+
+            System.out.println("Message published");
+
+            client.disconnect();
+            System.out.println("Disconnected");
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+}
