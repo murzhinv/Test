@@ -1,0 +1,32 @@
+package org.apache.commons.net.util;
+
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+
+/**
+ * General utilities for SSLSocket.
+ *
+ * @since 3.4
+ */
+public class SSLSocketUtils {
+
+    /**
+     * Enable the HTTPS endpoint identification algorithm on an SSLSocket.
+     *
+     * @param socket the SSL socket
+     * @return {@code true} on success
+     */
+    public static boolean enableEndpointNameVerification(final SSLSocket socket) {
+        final SSLParameters sslParameters = socket.getSSLParameters();
+        if (sslParameters != null) {
+            sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+            socket.setSSLParameters(sslParameters);
+            return true;
+        }
+        return false;
+    }
+
+    private SSLSocketUtils() {
+        // Not instantiable
+    }
+}
