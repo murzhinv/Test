@@ -1,0 +1,82 @@
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import javax.net.ssl.SSLSocketFactory;
+
+public class MQTTPublisher {
+    private String brokerUrl;
+    private String clientId;
+    private String username;
+    private String password;
+    private String topic;
+    private MqttClient mqttClient;
+
+    public MQTTPublisher(String brokerUrl, String clientId, String username, String password, String topic) {
+        this.brokerUrl = brokerUrl;
+        this.clientId = clientId;
+        this.username = username;
+        this.password = password;
+        this.topic = topic;
+    }
+
+    public void connect() {
+        try {
+            mqttClient = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+            options.setSocketFactory(SSLSocketFactory.getDefault());
+            mqttClient.connect(options);
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void disconnect() {
+        try {
+            mqttClient.disconnect();
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void publish(String message) {
+        try {
+            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+            mqttClient.publish(topic, mqttMessage);
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+Вы можете использовать этот класс следующим образом:
+
+public class Main {
+    public static void main(String[] args) {
+        String brokerUrl = "ssl://mqtt.example.com:8883";
+        String clientId = "client1";
+        String username = "user";
+        String password = "password";
+        String topic = "test/topic";
+
+        // Создаем и подключаемся к MQTT-брокеру
+        MQTTPublisher mqttPublisher = new MQTTPublisher(brokerUrl, clientId, username, password, topic);
+        mqttPublisher.connect();
+
+        // Отправляем сообщение
+        mqttPublisher.publish("Hello, MQTT!");
+
+        // Ожидаем завершение отправки сообщения
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Отключаемся от MQTT-брокера
+        mqttPublisher.disconnect();
+    }
+}
+
