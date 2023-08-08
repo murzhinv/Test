@@ -1,96 +1,146 @@
 import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 
 public class Publisher {
-    private final String brokerUrl;
-    private final String clientId;
-    private final MqttClient client;
+    public static void main(String[] args) {
+        String topic = "mqtt_topic";
+        String content = "Hello from MQTT publisher";
+        int qos = 2;
+        String broker = "ssl://mqtt.example.com:8883";
+        String clientId = "JavaPub";
+        String caFilePath = "/path/to/ca.crt";
+        String certFilePath = "/path/to/client.crt";
+        String keyFilePath = "/path/to/client.key";
+        String password = "mqtt_password";
 
-    public Publisher(String brokerUrl, String clientId, String caCertFile, String clientCertFile, String clientKeyFile) throws MqttException, MqttSecurityException {
-        this.brokerUrl = brokerUrl;
-        this.clientId = clientId;
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setCleanSession(true);
-        options.setSocketFactory(MqttSSLUtil.getSocketFactory(caCertFile, clientCertFile, clientKeyFile));
-        client = new MqttClient(brokerUrl, clientId, null);
-        client.connect(options);
-    }
-
-    public void publish(String topic, String message) throws MqttException {
-        MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-        client.publish(topic, mqttMessage);
-    }
-}
-
-class Subscriber implements MqttCallback {
-    private final String brokerUrl;
-    private final String clientId;
-    private final MqttClient client;
-
-    public Subscriber(String brokerUrl, String clientId, String caCertFile, String clientCertFile, String clientKeyFile) throws MqttException, MqttSecurityException {
-        this.brokerUrl = brokerUrl;
-        this.clientId = clientId;
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setCleanSession(true);
-        options.setSocketFactory(MqttSSLUtil.getSocketFactory(caCertFile, clientCertFile, clientKeyFile));
-        client = new MqttClient(brokerUrl, clientId, null);
-        client.connect(options);
-    }
-
-    public void subscribe(String topic) throws MqttException {
-        client.setCallback(this);
-        client.subscribe(topic);
-    }
-
-    @Override
-    public void connectionLost(Throwable throwable) {
-        throwable.printStackTrace();
-    }
-
-    @Override
-    public void messageArrived(String topic, MqttMessage mqttMessage) throws Exception {
-        String message = new String(mqttMessage.getPayload());
-        System.out.println("Received message on topic: " + topic + ", message: " + message);
-    }
-
-    @Override
-    public void deliveryComplete(IMqttDeliveryToken token) {
-    }
-}
-
-class MqttSSLUtil {
-    public static SSLSocketFactory getSocketFactory(String caCertFile, String clientCertFile, String clientKeyFile) {
         try {
-            KeyStore caCertStore = KeyStore.getInstance("PKCS12");
-            caCertStore.load(new FileInputStream(caCertFile), null);
-            
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            FileInputStream clientCertIn = new FileInputStream(clientCertFile);
-            X509Certificate clientCert = (X509Certificate) certFactory.generateCertificate(clientCertIn);
-            clientCertIn.close();
-            
-            FileInputStream clientKeyIn = new FileInputStream(clientKeyFile);
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            PrivateKey clientKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(clientKeyIn.readAllBytes()));
-            clientKeyIn.close();
+            MqttClient client = new MqttClient(broker, clientId, new MemoryPersistence());
 
-            KeyStore clientCertStore = KeyStore.getInstance("PKCS12");
-            clientCertStore.load(null, null);
-            clientCertStore.setCertificateEntry(clientCert.getSubjectX500Principal().getName(), clientCert);
-            clientCertStore.setKeyEntry(clientCert.getSubjectX500Principal().getName(), clientKey, null, new Certificate[]{clientCert});
+            // Configure SSL/TLS
+            X509Certificate caCert = readCertificate(caFilePath);
+            X509Certificate clientCert = readCertificate(certFilePath);
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(null, null);
+            keyStore.setCertificateEntry("caCert", caCert);
+            keyStore.setCertificateEntry("clientCert", clientCert);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, password.toCharArray());
 
-            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(clientCertStore, null);
-
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            trustManagerFactory.init(caCertStore);
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(keyStore);
 
             SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+            SSLSocketFactory ssf = sslContext.getSocketFactory();
 
-            return sslContext.getSocketFactory();
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setSocketFactory(ssf);
+
+            client.connect(options);
+
+            MqttMessage message = new MqttMessage(content.getBytes());
+            message.setQos(qos);
+            client.publish(topic, message);
+
+            client.disconnect();
+        } catch (MqttException me) {
+            me.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
-            return null;
+        }
+    }
+
+    private static X509Certificate readCertificate(String filePath) throws CertificateException {
+        try (FileInputStream fis = new FileInputStream(filePath)) {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            return (X509Certificate) cf.generateCertificate(fis);
+        } catch (Exception e) {
+            throw new CertificateException("Failed to read certificate file");
+        }
+    }
+}
+
+
+
+
+
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
+public class Subscriber {
+    public static void main(String[] args) {
+        String topic = "mqtt_topic";
+        String broker = "ssl://mqtt.example.com:8883";
+        String clientId = "JavaSub";
+        String caFilePath = "/path/to/ca.crt";
+        String certFilePath = "/path/to/client.crt";
+        String keyFilePath = "/path/to/client.key";
+        String password = "mqtt_password";
+
+        try {
+            MqttClient client = new MqttClient(broker, clientId, new MemoryPersistence());
+
+            // Configure SSL/TLS
+            X509Certificate caCert = readCertificate(caFilePath);
+            X509Certificate clientCert = readCertificate(certFilePath);
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(null, null);
+            keyStore.setCertificateEntry("caCert", caCert);
+            keyStore.setCertificateEntry("clientCert", clientCert);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, password.toCharArray());
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(keyStore);
+
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+            SSLSocketFactory ssf = sslContext.getSocketFactory();
+
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setSocketFactory(ssf);
+
+            client.connect(options);
+
+            client.subscribe(topic, new IMqttMessageListener() {
+                @Override
+                public void messageArrived(String topic, MqttMessage message) throws Exception {
+                    System.out.println("Received message: " + new String(message.getPayload()));
+                }
+            });
+
+            client.disconnect();
+        } catch (MqttException me) {
+            me.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static X509Certificate readCertificate(String filePath) throws CertificateException {
+        try (FileInputStream fis = new FileInputStream(filePath)) {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            return (X509Certificate) cf.generateCertificate(fis);
+        } catch (Exception e) {
+            throw new CertificateException("Failed to read certificate file");
         }
     }
 }
@@ -102,20 +152,7 @@ class MqttSSLUtil {
 
 public class Main {
     public static void main(String[] args) {
-        try {
-            String brokerUrl = "ssl://mqtt.example.com:8883";
-            String clientId = "java-mqtt-client";
-            String caCertFile = "/path/to/ca_cert.p12";
-            String clientCertFile = "/path/to/client_cert.p12";
-            String clientKeyFile = "/path/to/client_key.key";
-
-            Publisher publisher = new Publisher(brokerUrl, clientId, caCertFile, clientCertFile, clientKeyFile);
-            publisher.publish("topic/test", "Hello, MQTT!");
-
-            Subscriber subscriber = new Subscriber(brokerUrl, clientId, caCertFile, clientCertFile, clientKeyFile);
-            subscriber.subscribe("topic/test");
-        } catch (MqttException | MqttSecurityException e) {
-            e.printStackTrace();
-        }
+        Publisher.main(null);
+        Subscriber.main(null);
     }
 }
