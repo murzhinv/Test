@@ -1,32 +1,26 @@
 import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
-import javax.net.ssl.SSLSocketFactory;
+public class Publish {
 
-public class MQTTPublisher {
-    private String brokerUrl;
-    private String clientId;
-    private String username;
-    private String password;
-    private String topic;
-    private MqttClient mqttClient;
+    private MqttClient client;
+    private MqttConnectOptions options;
 
-    public MQTTPublisher(String brokerUrl, String clientId, String username, String password, String topic) {
-        this.brokerUrl = brokerUrl;
-        this.clientId = clientId;
-        this.username = username;
-        this.password = password;
-        this.topic = topic;
+    public Publish(String broker, String clientId, String certPath, String certPassword) {
+        try {
+            options = new MqttConnectOptions();
+            options.setSocketFactory(SslUtil.getSocketFactory(certPath, certPassword));
+            
+            client = new MqttClient(broker, clientId);
+            client.connect(options);
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
     }
 
-    public void connect() {
+    public void publishMessage(String topic, String message) {
         try {
-            mqttClient = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setUserName(username);
-            options.setPassword(password.toCharArray());
-            options.setSocketFactory(SSLSocketFactory.getDefault());
-            mqttClient.connect(options);
+            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+            client.publish(topic, mqttMessage);
         } catch (MqttException e) {
             e.printStackTrace();
         }
@@ -34,16 +28,8 @@ public class MQTTPublisher {
 
     public void disconnect() {
         try {
-            mqttClient.disconnect();
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void publish(String message) {
-        try {
-            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-            mqttClient.publish(topic, mqttMessage);
+            client.disconnect();
+            client.close();
         } catch (MqttException e) {
             e.printStackTrace();
         }
@@ -51,32 +37,96 @@ public class MQTTPublisher {
 }
 
 
-Вы можете использовать этот класс следующим образом:
 
-public class Main {
-    public static void main(String[] args) {
-        String brokerUrl = "ssl://mqtt.example.com:8883";
-        String clientId = "client1";
-        String username = "user";
-        String password = "password";
-        String topic = "test/topic";
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
-        // Создаем и подключаемся к MQTT-брокеру
-        MQTTPublisher mqttPublisher = new MQTTPublisher(brokerUrl, clientId, username, password, topic);
-        mqttPublisher.connect();
+public class Subscribe {
 
-        // Отправляем сообщение
-        mqttPublisher.publish("Hello, MQTT!");
+    private MqttClient client;
+    private MqttConnectOptions options;
 
-        // Ожидаем завершение отправки сообщения
+    public Subscribe(String broker, String clientId, String certPath, String certPassword) {
         try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
+            options = new MqttConnectOptions();
+            options.setSocketFactory(SslUtil.getSocketFactory(certPath, certPassword));
+            
+            client = new MqttClient(broker, clientId, new MemoryPersistence());
+            client.setCallback(new MqttCallback() {
+                @Override
+                public void connectionLost(Throwable cause) { }
+    
+                @Override
+                public void messageArrived(String topic, MqttMessage message) throws Exception {
+                    System.out.println("Received message: " + new String(message.getPayload()));
+                }
+    
+                @Override
+                public void deliveryComplete(IMqttDeliveryToken token) { }
+            });
+    
+            client.connect(options);
+        } catch (MqttException e) {
             e.printStackTrace();
         }
+    }
 
-        // Отключаемся от MQTT-брокера
-        mqttPublisher.disconnect();
+    public void subscribeToTopic(String topic) {
+        try {
+            client.subscribe(topic);
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void disconnect() {
+        try {
+            client.disconnect();
+            client.close();
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
     }
 }
 
+
+
+
+
+import javax.net.ssl.SSLSocketFactory;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+public class SslUtil {
+
+    private static final String KEYSTORE_TYPE = "PKCS12";
+    private static final String TLS_PROTOCOL = "TLS";
+
+    public static SSLSocketFactory getSocketFactory(String certPath, String certPassword) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(KEYSTORE_TYPE);
+            keyStore.load(new FileInputStream(certPath), certPassword.toCharArray());
+
+            X509Certificate certificate = (X509Certificate) keyStore.getCertificate(keyStore.aliases().nextElement());
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, certPassword.toCharArray());
+
+            SSLContext sslContext = SSLContext.getInstance(TLS_PROTOCOL);
+            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+            
+            return sslContext.getSocketFactory();
+        } catch (KeyStoreException | CertificateException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyManagementException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+}
