@@ -1,89 +1,121 @@
 import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
-import javax.net.ssl.SSLSocketFactory;
+public class Publisher {
+    private final String brokerUrl;
+    private final String clientId;
+    private final MqttClient client;
 
-public class MQTTSubscriber {
-    private String brokerUrl;
-    private String clientId;
-    private String username;
-    private String password;
-    private String topic;
-    private MqttClient mqttClient;
-
-    public MQTTSubscriber(String brokerUrl, String clientId, String username, String password, String topic) {
+    public Publisher(String brokerUrl, String clientId, String caCertFile, String clientCertFile, String clientKeyFile) throws MqttException, MqttSecurityException {
         this.brokerUrl = brokerUrl;
         this.clientId = clientId;
-        this.username = username;
-        this.password = password;
-        this.topic = topic;
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setCleanSession(true);
+        options.setSocketFactory(MqttSSLUtil.getSocketFactory(caCertFile, clientCertFile, clientKeyFile));
+        client = new MqttClient(brokerUrl, clientId, null);
+        client.connect(options);
     }
 
-    public void connect() {
-        try {
-            mqttClient = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setUserName(username);
-            options.setPassword(password.toCharArray());
-            options.setSocketFactory(SSLSocketFactory.getDefault());
-            mqttClient.connect(options);
+    public void publish(String topic, String message) throws MqttException {
+        MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+        client.publish(topic, mqttMessage);
+    }
+}
 
-            mqttClient.setCallback(new MqttCallback() {
-                @Override
-                public void connectionLost(Throwable throwable) {
-                    // Обработка потери соединения
-                }
+class Subscriber implements MqttCallback {
+    private final String brokerUrl;
+    private final String clientId;
+    private final MqttClient client;
 
-                @Override
-                public void messageArrived(String s, MqttMessage mqttMessage) throws Exception {
-                    // Обработка полученного сообщения
-                    System.out.println("Received message: " + new String(mqttMessage.getPayload()));
-                }
-
-                @Override
-                public void deliveryComplete(IMqttDeliveryToken iMqttDeliveryToken) {
-                    // Обработка успешной доставки сообщения
-                }
-            });
-
-            mqttClient.subscribe(topic);
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
+    public Subscriber(String brokerUrl, String clientId, String caCertFile, String clientCertFile, String clientKeyFile) throws MqttException, MqttSecurityException {
+        this.brokerUrl = brokerUrl;
+        this.clientId = clientId;
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setCleanSession(true);
+        options.setSocketFactory(MqttSSLUtil.getSocketFactory(caCertFile, clientCertFile, clientKeyFile));
+        client = new MqttClient(brokerUrl, clientId, null);
+        client.connect(options);
     }
 
-    public void disconnect() {
+    public void subscribe(String topic) throws MqttException {
+        client.setCallback(this);
+        client.subscribe(topic);
+    }
+
+    @Override
+    public void connectionLost(Throwable throwable) {
+        throwable.printStackTrace();
+    }
+
+    @Override
+    public void messageArrived(String topic, MqttMessage mqttMessage) throws Exception {
+        String message = new String(mqttMessage.getPayload());
+        System.out.println("Received message on topic: " + topic + ", message: " + message);
+    }
+
+    @Override
+    public void deliveryComplete(IMqttDeliveryToken token) {
+    }
+}
+
+class MqttSSLUtil {
+    public static SSLSocketFactory getSocketFactory(String caCertFile, String clientCertFile, String clientKeyFile) {
         try {
-            mqttClient.disconnect();
-        } catch (MqttException e) {
+            KeyStore caCertStore = KeyStore.getInstance("PKCS12");
+            caCertStore.load(new FileInputStream(caCertFile), null);
+            
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            FileInputStream clientCertIn = new FileInputStream(clientCertFile);
+            X509Certificate clientCert = (X509Certificate) certFactory.generateCertificate(clientCertIn);
+            clientCertIn.close();
+            
+            FileInputStream clientKeyIn = new FileInputStream(clientKeyFile);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PrivateKey clientKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(clientKeyIn.readAllBytes()));
+            clientKeyIn.close();
+
+            KeyStore clientCertStore = KeyStore.getInstance("PKCS12");
+            clientCertStore.load(null, null);
+            clientCertStore.setCertificateEntry(clientCert.getSubjectX500Principal().getName(), clientCert);
+            clientCertStore.setKeyEntry(clientCert.getSubjectX500Principal().getName(), clientKey, null, new Certificate[]{clientCert});
+
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(clientCertStore, null);
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(caCertStore);
+
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+
+            return sslContext.getSocketFactory();
+        } catch (Exception e) {
             e.printStackTrace();
+            return null;
         }
     }
 }
 
 
-Вы можете использовать этот класс следующим образом:
+
+
+
 
 public class Main {
     public static void main(String[] args) {
-        String brokerUrl = "ssl://mqtt.example.com:8883";
-        String clientId = "client1";
-        String username = "user";
-        String password = "password";
-        String topic = "test/topic";
-
-        // Создаем и подключаемся к MQTT-брокеру для получения сообщений
-        MQTTSubscriber mqttSubscriber = new MQTTSubscriber(brokerUrl, clientId, username, password, topic);
-        mqttSubscriber.connect();
-
-        // Ожидаем получение сообщений в течение 10 секунд
         try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
+            String brokerUrl = "ssl://mqtt.example.com:8883";
+            String clientId = "java-mqtt-client";
+            String caCertFile = "/path/to/ca_cert.p12";
+            String clientCertFile = "/path/to/client_cert.p12";
+            String clientKeyFile = "/path/to/client_key.key";
+
+            Publisher publisher = new Publisher(brokerUrl, clientId, caCertFile, clientCertFile, clientKeyFile);
+            publisher.publish("topic/test", "Hello, MQTT!");
+
+            Subscriber subscriber = new Subscriber(brokerUrl, clientId, caCertFile, clientCertFile, clientKeyFile);
+            subscriber.subscribe("topic/test");
+        } catch (MqttException | MqttSecurityException e) {
             e.printStackTrace();
         }
-
-        // Отключаемся от MQTT-брокера
-        mqttSubscriber.disconnect();
     }
 }
