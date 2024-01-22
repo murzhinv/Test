@@ -1,83 +1,96 @@
-import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+Конечно! Вот пример тестовой программы на Java для тестирования OPC UA сервера:
 
-import javax.net.ssl.SSLSocketFactory;
+import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
+import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaSubscription;
+import org.eclipse.milo.opcua.stack.core.AttributeId;
+import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
+import org.eclipse.milo.opcua.stack.core.types.structured.ReadResponse;
+import org.eclipse.milo.opcua.stack.core.types.structured.WriteResponse;
 
-public class MQTTPublisher {
+import java.util.concurrent.CompletableFuture;
 
-    private MqttClient client;
-    private MqttConnectOptions connOpts;
+public class OpcUaClientTest {
 
-    public MQTTPublisher(String broker, String clientId, String caFilePath, String clientCertFilePath, String clientKeyFilePath) {
-        try {
-            client = new MqttClient(broker, clientId, new MemoryPersistence());
+    public static void main(String[] args) throws Exception {
 
-            connOpts = new MqttConnectOptions();
-            connOpts.setSocketFactory(SSLSocketFactory.getDefault());
-            connOpts.setCleanSession(true);
+        // Create a new OPC UA client
+        OpcUaClient client = OpcUaClient.create("opc.tcp://localhost:4840");
 
-            // Загрузка корневого сертификата
-            connOpts.setServerURIs(new String[]{broker});
-            connOpts.setSocketFactory(SSLSocketUtil.getSocketFactory(caFilePath, clientCertFilePath, clientKeyFilePath, ""));
+        // Connect to the OPC UA server
+        client.connect().get();
 
-            System.out.println("Connecting to broker: " + broker);
-            client.connect(connOpts);
-            System.out.println("Connected");
-        } catch (MqttException e) {
-            e.printStackTrace();
+        // Read a variable value
+        NodeId nodeId = new NodeId(2, "MyVariable");
+        AttributeId attributeId = AttributeId.Value;
+
+        CompletableFuture<ReadResponse> readFuture = client.readAttribute(
+                0.0, TimestampsToReturn.Both, nodeId, attributeId);
+
+        ReadResponse readResponse = readFuture.get();
+
+        if (readResponse.getResults()[0].isGood()) {
+            DataValue value = readResponse.getResults()[0].getValue();
+            System.out.println("Read value: " + value.getValue().toString());
+        } else {
+            System.out.println("Read failed: " + readResponse.getResults()[0].getStatusCode());
         }
-    }
 
-    public void publish(String topic, String message) {
-        try {
-            System.out.println("Publishing message: " + message);
-            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-            mqttMessage.setQos(0);
-            client.publish(topic, mqttMessage);
-            System.out.println("Message published");
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
-    }
+        // Write a variable value
+        NodeId nodeId = new NodeId(2, "MyVariable");
+        AttributeId attributeId = AttributeId.Value;
+        DataValue writeValue = new DataValue(new Variant(42));
 
-    public void disconnect() {
-        try {
-            client.disconnect();
-            System.out.println("Disconnected");
-        } catch (MqttException e) {
-            e.printStackTrace();
+        CompletableFuture<WriteResponse> writeFuture = client.writeAttribute(
+                0.0, nodeId, attributeId, writeValue);
+
+        WriteResponse writeResponse = writeFuture.get();
+
+        if (writeResponse.getResults()[0].isGood()) {
+            System.out.println("Write successful");
+        } else {
+            System.out.println("Write failed: " + writeResponse.getResults()[0].getStatusCode());
         }
+
+        // Subscribe to a variable value change
+        NodeId nodeId = new NodeId(2, "MyVariable");
+        AttributeId attributeId = AttributeId.Value;
+
+        UaSubscription subscription = client.getSubscriptionManager().createSubscription(1000.0).get();
+
+        CompletableFuture<StatusCode> subscriptionFuture = subscription.subscribe(
+                new MonitoringParameters(
+                        subscription.nextClientHandle(),
+                        1000.0,
+                        null,
+                        UInteger.valueOf(10),
+                        true
+                ),
+                new DataChangeHandler() {
+                    @Override
+                    public void onDataChange(Subscription subscription, MonitoredItem item, DataValue value) {
+                        System.out.println("Value changed: " + value.getValue().toString());
+                    }
+                }
+        );
+
+        StatusCode subscriptionStatusCode = subscriptionFuture.get();
+
+        if (subscriptionStatusCode.isGood()) {
+            System.out.println("Subscription successful");
+        } else {
+            System.out.println("Subscription failed: " + subscriptionStatusCode);
+        }
+
+        // Disconnect from the OPC UA server
+        client.disconnect().get();
     }
 }
 
 
-В этом примере класс MQTTPublisher имеет конструктор, который устанавливает соединение с брокером MQTT, используя переданные параметры, такие как адрес брокера (broker), идентификатор клиента (clientId), пути к файлам сертификатов (caFilePath, clientCertFilePath и clientKeyFilePath). Затем, у класса есть метод publish, который выполняет публикацию сообщения на указанный топик, и метод disconnect, который отключает соединение с брокером.
+Обратите внимание, что в примере используется библиотека Eclipse Milo для общения с OPC UA сервером. Вам может потребоваться добавить зависимость на эту библиотеку в вашем проекте.
 
-Вы можете использовать этот класс следующим образом:
-
-public class Main {
-    public static void main(String[] args) {
-        // Параметры для подключения и публикации MQTT
-        String broker = "ssl://mqtt.example.com:8883";
-        String clientId = "publisher";
-        String caFilePath = "/path/to/ca.crt";
-        String clientCertFilePath = "/path/to/client.crt";
-        String clientKeyFilePath = "/path/to/client.key";
-
-        // Создание экземпляра класса MQTTPublisher
-        MQTTPublisher publisher = new MQTTPublisher(broker, clientId, caFilePath, clientCertFilePath, clientKeyFilePath);
-
-        // Публикация сообщения на топик
-        String topic = "test/topic";
-        String message = "Hello, MQTT!";
-        publisher.publish(topic, message);
-
-        // Отключение от брокера MQTT
-        publisher.disconnect();
-    }
-}
-
-
-Вы должны заменить значения broker, clientId, caFilePath, clientCertFilePath и clientKeyFilePath на соответствующие значения для вашего брокера и сертификатов.
-
-Надеюсь, это поможет вам реализовать класс, который выполняет публикацию MQTT с использованием SSL сертификатов. Если у вас возникнут еще вопросы, не стесняйтесь задавать их.
+Программа подключается к OPC UA серверу, считывает и записывает значения переменных, а также подписывается на изменения значений переменных. Вы можете настроить соответствующие NodeId и AttributeId для ваших переменных.
